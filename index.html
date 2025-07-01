@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SafeMind-اپلیکیشن جامع  </title>
+    <title>SafeMind - اپلیکیشن جامع  </title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -780,7 +780,7 @@
             "[نام کاربر]، این [روزهای پاک] روز نشان از تعهد بی‌قید و شرط شماست. [تاریخ شروع]، نقطه‌ای بود که تصمیم گرفتید به سمت نور حرکت کنید. [تعداد وسوسه‌ها] وسوسه، نه مانع، که پله‌هایی برای صعودتان شدند.",
             "تبریک به [نام کاربر] عزیز! [روزهای پاک] روز از این سفر خودسازی می‌گذرد. از [تاریخ شروع]، هر قدم شما به سوی تکامل بوده است. با [تعداد وسوسه‌ها] بار مقابله، شما مهارت‌های جدیدی در خود کشف کرده‌اید.",
             "[نام کاربر] گرامی، [روزهای پاک] روز پاکی، نمادی از پیروزی اراده بر عادت است. [تاریخ شروع]، آغاز رهایی شما بود. هرچند [تعداد وسوسه‌ها] بار با وسوسه مواجه شدید، اما هر بار قوی‌تر شدید.",
-            "آفرین بر [نام کاربر]! [روزهای پاک] روز از این راه پر از امید می‌گذرد. از [تاریخ شروع]، شما هر روز را با اراده‌ای تازه شروع کرده‌اید. [تعداد وسوسه‌ها] چالش، توانایی شما را در کنترل خویشتن ثابت کرده است.",
+            "آفرین بر [نام کاربر]! [روزهای پاک] روز از این راه پر از امید می‌گذرد. از [تاریخ شروع]، شما هر روز را با اراده‌ای تازه شروع کرده‌اید. [تعداد وسوسه‌ها] چالش, توانایی شما را در کنترل خویشتن ثابت کرده است.",
             "تبریک به [نام کاربر]! [روزهای پاک] روز از این مسیر پر از دستاورد می‌گذرد. از [تاریخ شروع]، شما ثابت کردید که می‌توانید به آرزوهایتان برسید. با [تعداد وسوسه‌ها] بار غلبه، شما به خودتان ثابت کردید که هیچ‌چیز غیرممکن نیست.",
             "[نام کاربر]، این [روزهای پاک] روز، یک داستان موفقیت است. [تاریخ شروع]، شروع یک زندگی جدید برای شما بود. [تعداد وسوسه‌ها] وسوسه، فرصت‌هایی برای قوی‌تر شدن شما بودند.",
             "درود بر [نام کاربر]! [روزهای پاک] روز پاکی، نشانه‌ای از رشد و تحول شماست. از [تاریخ شروع]، شما در حال تغییر زندگی‌تان هستید. [تعداد وسوسه‌ها] بار مقابله با وسوسه، نشان‌دهنده پشتکار شماست.",
@@ -1841,6 +1841,76 @@
                 }, 1500);
             };
 
+            // New: Backup all localStorage data
+            const handleDownloadBackup = () => {
+                const allData = {};
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    allData[key] = localStorage.getItem(key);
+                }
+
+                // Convert date strings back to Date objects where applicable for correct re-parsing on upload
+                if (allData.safemind_last_check_in_date) {
+                    allData.safemind_last_check_in_date = new Date(allData.safemind_last_check_in_date).toISOString();
+                }
+                if (allData.safemind_daily_records) {
+                    allData.safemind_daily_records = JSON.parse(allData.safemind_daily_records).map(dateStr => new Date(dateStr).toISOString());
+                }
+                if (allData.safemind_temptations) {
+                    allData.safemind_temptations = JSON.parse(allData.safemind_temptations).map(t => ({...t, date: new Date(t.date).toISOString()}));
+                }
+
+                const dataStr = JSON.stringify(allData, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'safemind_backup.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showAppSnackbar('بک‌آپ با موفقیت دانلود شد!');
+            };
+
+            // New: Upload and restore localStorage data
+            const handleUploadBackup = (event) => {
+                const file = event.target.files[0];
+                if (!file) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const uploadedData = JSON.parse(e.target.result);
+                        
+                        // Clear existing localStorage data before restoring
+                        localStorage.clear();
+
+                        // Restore data
+                        for (const key in uploadedData) {
+                            if (uploadedData.hasOwnProperty(key)) {
+                                // Specific handling for arrays of dates or objects with dates
+                                if (key === 'safemind_daily_records' || key === 'safemind_temptations') {
+                                    localStorage.setItem(key, JSON.stringify(uploadedData[key]));
+                                } else {
+                                    localStorage.setItem(key, uploadedData[key]);
+                                }
+                            }
+                        }
+                        showAppSnackbar('بک‌آپ با موفقیت بارگذاری و بازیابی شد! صفحه در حال رفرش است...');
+                        setTimeout(() => {
+                            window.location.reload(true); // Hard reload to apply all changes
+                        }, 1500);
+                    } catch (error) {
+                        console.error("Error parsing backup file:", error);
+                        showAppSnackbar('خطا در بارگذاری فایل بک‌آپ. لطفاً از صحت فایل اطمینان حاصل کنید.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
 
             const renderScreen = () => {
                 if (currentView === 'splash') {
@@ -1921,9 +1991,26 @@
                                 <button className={`sidebar-button ${currentView === 'challenges' ? 'active' : ''}`} onClick={() => handleMenuItemClick('challenges')}> <i className="fas fa-dumbbell"></i> <span>چالش‌ها</span> </button>
                                 <button className={`sidebar-button ${currentView === 'focusgames' ? 'active' : ''}`} onClick={() => handleMenuItemClick('focusgames')}> <i className="fas fa-gamepad"></i> <span>بازی‌های تمرکز</span> </button>
                                 <button className={`sidebar-button ${currentView === 'notifications' ? 'active' : ''}`} onClick={() => handleMenuItemClick('notifications')}> <i className="fas fa-bell"></i> <span>نوتیفیکیشن‌ها</span> </button>
+                                {/* New Backup and Restore Buttons */}
+                                <button className="sidebar-button" onClick={handleDownloadBackup}> 
+                                    <i className="fas fa-download"></i> 
+                                    <span>دانلود بک‌آپ</span> 
+                                </button>
+                                <label htmlFor="upload-backup-input" className="sidebar-button cursor-pointer">
+                                    <i className="fas fa-upload"></i> 
+                                    <span>آپلود بک‌آپ</span>
+                                    <input 
+                                        id="upload-backup-input" 
+                                        type="file" 
+                                        accept=".json" 
+                                        onChange={handleUploadBackup} 
+                                        className="hidden" 
+                                    />
+                                </label>
+                                {/* End New Backup and Restore Buttons */}
                                 <button className="sidebar-button" onClick={() => { setIsSidebarOpen(false); setShowRelapseConfirmModal(true); }}> <i className="fas fa-redo-alt"></i> <span>بازنشانی روزهای پاک</span> </button>
                                 <div className="mt-auto p-4 text-center text-gray-500 dark:text-gray-400 text-xs">
-                                    SafeMind v1.4
+                                    SafeMind V1.5
                                     <br />
                                     Powered By BestMind
                                 </div>
